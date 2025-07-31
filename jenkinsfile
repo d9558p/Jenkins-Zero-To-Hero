@@ -1,0 +1,285 @@
+pipeline{
+    agent any
+    stages{
+        stage('One'){
+            steps{
+                echo "Hi, step 1 i snow being executed"
+            }
+        }
+        stage('Two'){
+            steps{
+                echo "Sample test of stage"
+            }
+        }
+    }
+}
+
+#parameters in jenkins pipeline.
+pipeline{
+    agent any
+
+    parameters {
+        string(name:'BRANCH_NAME', defaultValue:'main', description:'Git branch to build')
+    }
+
+    stages{
+        stage('Git Checkout'){
+            steps{
+                git branch: "${params.BRANCH_NAME}", url: 'https://github.com/jaiswaldi246/Boardgame.git'
+            }
+        }
+
+        stage('Test'){
+            steps{
+                echo 'performing the unit test in maven...'
+                sh 'maven test'
+            }
+        }
+    }
+}
+
+#Input function
+
+pipeline{
+    agent any
+    stages{
+        stage('Input Function') {
+            steps{
+                sh 'echo "This is dp"'
+            }
+            Input{
+                message "are you sure?"
+                ok "yes"
+            }
+        }
+    }
+}
+
+#UPstream  & Downstream setup in pipeline
+
+pipeline {
+    agent any
+    stages {
+        stage ('trivy') {
+            steps {
+                sh 'trivy --version'
+            }
+        }
+    }
+    post {
+        success {
+            build job : 'B'
+        }
+        failure {
+            build job : 'C'
+        }
+    }
+}
+
+
+# Changeset 
+
+
+# 1. In a pipeline, a test stage should be executed, only when a specific file (i.e, test, etc) has been modified in src.
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven3.8'
+        jdk 'jdk17'
+    }
+
+    stages {
+        stage ('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/jaiswaladi246/Boardgame.git'
+            }
+        }
+
+        stage ('Test') {
+            when {
+                Changeset "test.txt" # assume this "text.txt file is present in src and this stage should be executed only when a change has been made in 'text.txt' file."
+            }
+            steps {
+                sh 'mvn test'
+            }
+        }
+    }
+}
+
+# Execution of commands in specific folder.
+# Assume the src is not in the root directory of github repo, instead it exists inside the another folder/directory.
+# In this case code cannot be compiled or packages etc.. So the pipeline should be written in such a way that the code should be executed.
+# go to job --> configure ---> pipeline syntax --> from drop down choose "dir: change current directory" & path "provide the dir/folder in which code exists <dir/>" the click on generate pipeline sccript.
+#
+
+pipeline{
+    agent any
+
+    tools {
+        maven 'maven3.8'
+        jdk 'jdk17'
+    }
+    parameters {
+        string(name:'BRANCH_NAME', defaultValue:'main', description:'Git branch to build')
+    }
+
+    stages{
+        stage('Git Checkout'){
+            steps{
+                git branch: "${params.BRANCH_NAME}", url: 'https://github.com/jaiswaladi246/Boardgame.git'
+            }
+        }
+        stage ('Build') {
+            steps {
+                dir('Dir/') {
+    sh 'mvn package'
+}
+            }
+        }
+    }
+}
+
+
+# Multi environment Deployment example.
+# Suppose a single pipeline that we wanted to deploy in multiple env.
+
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: "ENV", choices: ['DEV', 'QA', 'PROD'], description: 'Environments')
+    }
+    stages {
+        stage('Hello') {
+            steps {
+                echo 'Hello-World'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                script {
+                    if (params.ENV=='DEV') {
+                        sh "echo DEV"
+                    }
+                    else if (params.ENV=='QA') {
+                        sh "echo QA"
+                    }
+                    else {
+                        sh "echo PROD"
+                    }
+                } 
+            }
+        }
+    }
+}
+
+# Parallel stage Execution
+# i.e, wanted to execute multiple stages at a time.
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven'
+        jdk 'jdk11'
+    }
+
+    stages {
+        stage ('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/jaiswaladi246/Boardgame.git'
+            }
+        }
+        stage ('compile') {
+            steps {
+                sh 'mvn compile'
+            }
+        }
+        
+        stage ('Parallel') {
+            parallel {
+                stage ('Unit') {
+                    steps {
+                        sh "echo unit"
+                    }
+                }
+                stage ('Integration') {
+                    steps {
+                        sh "echo integration"
+                    }
+                }
+                stage ('Pentesting') {
+                    steps {
+                        sh "echo pentesting"
+                    }
+                }
+            }    
+        }
+        stage ('build') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+    }
+}
+
+# Post Cleanup
+# When we're working on a big project, it gonna consume lot of space after the completion of deployment. However, the artifactory will be stored in the nexus. So we can clean up the jenkins workspace.
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven'
+        jdk 'jdk11'
+    }
+
+    stages {
+        stage ('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/jaiswaladi246/Boardgame.git'
+            }
+        }
+        stage ('build') {
+            steps {
+                sh 'mvn package'
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Clean up workspace....'
+            cleanWs()
+        }
+    }
+}
+
+# Timed-out stages
+# If the build is taking more than usual time. It should be timedout.
+# go to job --> configure ---> pipeline syntax --> from drop down choose "timeout: Enforce time limit" & Timeout "choose required time limit like 10 sec for this build" & Unit "seconds" then click on generate pipeline sccript.
+
+pipeline {
+    agent any
+
+    tools {
+        maven 'maven'
+        jdk 'jdk11'
+    }
+
+    stages {
+        stage ('Git Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/jaiswaladi246/Boardgame.git'
+            }
+        }
+        stage ('build') {
+            steps {
+                timeout(time: 10, unit: 'SECONDS') {
+    sh 'mvn package'
+}
+            }
+        }
+    }
+}
